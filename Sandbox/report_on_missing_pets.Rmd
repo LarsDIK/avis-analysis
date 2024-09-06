@@ -1,0 +1,396 @@
+---
+title: "Verloren!"
+output:
+  word_document: 
+    reference_docx: "~/avis-analysis/Sandbox/template.docx"
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+require("knitr")
+opts_knit$set(root.dir = "~/avis-analysis/Sandbox/")
+```
+
+
+
+## Emotionsanalyse von Anzeigen von vermissten Haustieren im Basler Avisblatt
+### Teil 1: Einführung
+Vermisstenanzeigen für Haustiere begegnen uns heute alltäglich. Doch bereits in frühneuzeitlichen Intelligenzblättern inserierten HaustierbesitzerInnen den Verlust ihres tierischen Gefährten mit der Hoffnung, mit der geschalteten Anzeige ein möglichst breites Publikum zu erreichen und das verlorene Tier wieder zu erhalten. Über die einzelnen Anzeigen hinaus offenbaren die Verlustanzeigen spezifische Muster, wie die BesitzerInnen über ihre Haustiere schrieben und damit auch ihre emotionale Verbundenheit zu ihrem Haustier betonten. Am Beispiel des Basler Avisblattes (1729-1844) soll nachfolgend anhand einer explorativen Datenanalyse in einem ersten Schritt mit Tagfiltern ein *sample* von Inseraten von vermissten und gefundenen Hunden angereichert werden, um in einem zweiten Schritt eine Emotionsanalyse (*sentiment analysis*) durchzuführen. Die Emotionsanalyse soll mit dem *NRC Word-Emotion Association Lexicon* durchgeführt werden, welches zwischen acht *‘basic emotions’* und zwei *‘sentiments’* differenzieren kann. Die Diskussion der Methodik und die Analyse der Resultate findet hier nachfolgend statt, während Anmerkungen zum Code in der *Rmd-File* zu finden sind. Die Leitfragen der nachfolgenden Analyse sollen Mensch-Hund Beziehungen während der Sattelzeit in den Fokus rücken: Wie schrieben die BesitzerInnen über ihre Haustiere? Wie wurden Hunde beschrieben, um ihre unverwechselbare Individualität zu betonen? Und schlussendlich: Lassen sich bestimmte Emotionen in den Anzeigen feststellen, wenn das geliebte Haustier dann plötzlich verschwunden war?  
+
+### Teil 2: Anreicherung Datensatz
+Die im Rahmen des SNF-Projektes «*Printed Markets, the Basel Avisblatt 1729-1845*» angereicherte Datenbank von Anzeigen dienen als Ausgangspunkt der Analyse. Zunächst wurde ein Korpus von Anzeigen angereichert, der unter der Grundgesamtheit aller Anzeigen nur diejenigen von vermissten und gefundenen Hunden herausgreift. Dieser Filterprozess verläuft in mehreren Schritten. Vorweg werden nur Anzeigen in das *sample* aufgenommen, die unter der Rubrik «Verloren und Gefundenes» auftauchen. Während in anderen Intelligenzblättern verlorene Tiere ihre eigene Rubrik erhielten, waren im Basler Avisblatt verlorene und gefundene Tiere und Dinge in derselben Sparte zu finden. 
+```{r, include=FALSE, echo=FALSE}
+# library(avisblatt)
+source("C:/Users/larsd/OneDrive/Dokumente/GitHub/LarsDIK/avis-analysis/Sandbox/filtering.R")
+source("C:/Users/larsd/OneDrive/Dokumente/GitHub/LarsDIK/avis-analysis/Sandbox/utils.R")
+library(stringr)
+library(data.table)
+library(avisblatt)
+library(tidyr)
+library(dplyr)
+library(quanteda)
+library(syuzhet)
+library(ggplot2)
+
+# load collections
+AVIS_YEARS <- c(1729, 1730, 1734, 1739, 1742, 1743, 1744, 1749, 1754, 1759,
+                1764, 1769, 1774, 1779, 1784, 1789, 1794, 1795, 1796, 1797,
+                1798, 1799, 1800, 1801, 1802, 1803, 1804, 1809, 1814, 1819,
+                1824, 1829, 1832, 1833, 1834, 1839, 1844)
+
+c_all <- gather_yearly_collections(AVIS_YEARS, just_meta = FALSE)
+
+# filter collection to lost and found
+
+ids_lostandfound <- c_all$search_tags2(,"lostandfound",)
+
+c_lostandfound <- corpus(as.vector(texts(c_all$corpus)[ids_lostandfound]))
+
+```
+
+In einem zweiten Schritt wurde nach Wortkombinationen gesucht, die einzelne Anzeigen spezifisch als ‘Verlorenes’ oder ‘Gefundenes’ charakterisierten. Dies stellte sich als besondere Herausforderung dar, weil in beiden Anzeigegruppen dieselben Wörter verwendet werden. Dieser Fall traf vor allem bei kurzen Anzeigen zu, was eine eindeutige Zuordnung zusätzlich erschwerte. Mit den hier angewendeten Filtern wurden somit 74% aller unter Fundsachen gelisteten Anzeigen erfasst, die eindeutig einer einzelnen Rubrik zugeordnet werden konnten. Dies umfasst für die untersuchten Stichjahre insgesamt 18’203 Anzeigen. Die hier angewendeten Filter sind noch nicht in ihrer finalen Form und können noch verfeinert werden.  
+```{r, include=FALSE, echo=FALSE}
+#Tagfilter Lostads
+
+tagfilter_lost<-function(){
+  dict<-list()
+  dict$pos <- list(
+    loss_1="(E|e)ntwen", 
+    loss_2="(W|w)egge(nommen|gekommen)",
+    loss_3="(V|v)erl(o|oh)ren gegangen",
+    loss_4="(H|h)inweg(gekommen|genommen|verl(o|oh)ren|getragen|practicirt)",
+    loss_5="(H|h)inweg\\s(gekommen|genommen|verl(o|oh)ren|getragen|practicirt)",
+    loss_6="(A|a)b(H|h)anden",
+    honesty="(E|e)hrlich",
+    reward="(E|e)rk(e|a)nn|(T|t)rin(k|ck)",
+    reward_2="offerirt",
+    request="^(E|e)rsu",
+    discoverer="(F|f)inder|(W|w)(i|ie)derbringer",
+    thief="(D|d)ieb",
+    discretion="(V|v)erschw(ei|ie)g(ung|en|genheit)",
+    resale="((v|V)erkau(f|ff|fen|ffen)|(Ka|a)u(f|ff)|(E|e)rfahrung)\\s(angetragen|gebracht)",
+    return="(dessen|deren|gütige)\\s(Z|z)ur(ü|u)ckgabe",
+    miss="(V|v)ermiss",
+    expecting="(er|auf|auff|ge)wart(end|et)|gewarten|erwarten|au(f|ff|fzu)warten|abwarten|abzuwarten|er.warten|zulerwarten",
+    fair_reward="rechtm(ä|a)(ß|ss|t)ig(e|en|er)\\s(Belohnung|Rückgabe)",
+    escaped_bird="(zugeflogen.*(ist|seyn))|weggeflogen"
+  )
+dict$neg <- list(
+  Trinkgeld="(T|t)rin(k|ck)(G|g)l(ä|a)s|(T|t)rin(k|ck)(G|g)eschir|(T|t)rin(k|ck)(B|b)echer)|(T|t)rin(k|ck)(en|et|wasser|quelle|bar|empf)",
+  Versuchen="(V|v)ersuch",
+  verehren="(V|v)erehrlichen",
+  other="Erfinder|niedergelegt|(K|K)unst|(c|C)onditione",
+  exclude_Finder= "für (den|die).*Finder", 
+  exclude_Zuruckgabe="(Z|z)ur(ü|u)ckgabe angebot",
+  exclude_Foundads="(gefunden\\sworden|aufbehalten|w(i|ie)der|eingefunden|zustellen|(Z|z)ur(u|ü)ckgabe)(.*)offer(i|ie)rt",
+  exclude_Foundads_2="verl(o|oh)ren\\shat",
+  claim="(A|a)ns(pr|r)(a|u)ch",
+  OCR_error="(D|d)iebetreffen",
+  exclude_pick_up="(ab|abzu|abge)ho(len|t)",
+  exclude_pick_up_2="allda(.*)zu\\senth(e|\\s)ben",
+  describe="beschreiben|Beschreibung",
+  bring="((B|b)ericht-Hauß|Berichthaus|BerichtHauß|Adresse-Contor)\\sgebracht",
+  owner="rechtm(ä|a)(ß|ss|t|s)ig(e|en|er)\\s((B|b)esitzer|(M|m)eister|(V|v)erlier|(E|e)igen(th|t)(u|ü)m|(H|h)err)|Rechtmäßigen",
+  visit="besichtigen",
+  entitled_to="zustehen"
+)
+create_filter_output(dict)
+}
+
+#Tagfilter Foundads 
+tagfilter_found <- function(){
+  dict <- list()
+  dict$pos <- list(
+    found_1= "gefunden(\\s)worden",
+    found_3="hat.*gefunden",
+    claim= "(A|a)ns(pr|r)(a|u)ch",
+    offer= "(gefunden\\sworden|aufbehalten|w(i|ie)der|eingefunden|zustellen|(Z|z)ur(u|ü)ckgabe)(.*)offer(i|ie)rt",
+    owner="rechtm(ä|a)(ß|ss|t|s)ig(e|en|er)\\s((B|b)esitzer|(M|m)eister|(V|v)erlier|(E|e)igen(th|t)(u|ü)m|(H|h)err)|Rechtmäßigen",
+    waiting= "warten",
+    pick_up= "(ab|abzu|abge|ab\\s)ho(len|t)",
+    pick_up_2="allda(.*)zu\\senth(e|\\s)ben",
+    found_2= "((V|v)erl(o|oh)ren)(\\s)(hat)",
+    describe="beschreiben",
+    bring="((B|b)ericht-Hauß|Berichthaus|BerichtHauß|Adresse-Contor)\\sgebracht",
+    inquire="nachgefragt",
+    description="(B|b)eschreibung",
+    visit="besichtigen",
+    entitled_to="zustehen",
+    spotted_bird="zugeflogen"
+    
+  )
+  dict$neg <- list(
+  monetary_value= "(W|w)er(t|th) des",
+  reward_2= "(offer(i|ie)rt).*((E|e)rk(e|a)nn|(T|t)rin(k|ck)|(B|b)el(o|.)hnung)",
+  reward_1= "((E|e)rk(e|a)nn|(T|t)rin(k|ck)|(B|b)elohnung).*(offer(i|ie)rt)",
+  reward_3= "((R|r)(u|ü)ckgab|(D|d)an(t|k)|(E|e)rkanntlich).*(offer(i|ie)rt)",
+  reward_4= "(offer(i|ie)rt).*((R|r)(u|ü)ckgab|(D|d)an(t|k)|(E|e)rkanntlich)",
+  monetary_value= "(W|w)er(t|th) des",
+  expecting= "(er|auf|auff|ge)wart(end|et)|gewarten|erwarten|au(f|ff|fzu)warten|abwarten|abzuwarten|er.warten|zulerwarten",
+  exclude_Lostads= "(vermu(th|t)lich|nicht)(.*)gefunden\\sworden",
+  Finder= "(W|w)(i|ie)derbringer",
+  resale="((v|V)erkau(f|ff|fen|ffen)|(Ka|a)u(f|ff)|(E|e)rfahrung)\\s(angetragen|gebracht)",
+  fair_reward="rechtm(ä|a)(ß|ss|t)ig(e|en|er)\\s(Belohnung|Rückgabe)",
+  escaped_bird="(zugeflogen.*(ist|seyn))|weggeflogen"
+  
+  )
+  create_filter_output(dict)
+}
+
+#Tagfilter dogs
+tagfilter_lfdogs <- function(){
+  dict <- list()
+  dict$pos <- list(
+    general = "[H|h][u|ü]nd",
+    Federhund = "[F|f|]edern[-|\\s][H|h][u|ü]nd",
+    Haushund = "[H|h]aus[-|\\s][H|h][u|ü]nd",
+    Kettenhund = "[K|k|]etten[-|\\s][H|h][u|ü]nd",
+    EpagneulHund = "[E|e]pagneul[-|\\s][H|h][u|ü]nd",
+    Huhnerhund = "[H|h][u|ü][h|]ner[-|\\s][H|h][u|ü]nd", 
+    Pudelhund = "[P|p]udel[-|\\s][H|h][u|ü]nd",
+    Budelhund = "[B|b]udel[-|[H|h|B|b][u|ü]nd",
+    Dockenhund = "[D|d]ocken[-|\\s][H|h][u|ü]nd|[D|d]ec,n[-|][H|h][u|ü]nd",
+    Wachtelhund = "[W|w]achtel[-|\\s][H|h][u|ü]nd",
+    Doque = "[D|d]oquen|[D|d]o[g|q]u[e|en][-|\\s][H|h][u|ü]nd",
+    Arlequin = "[A|a]rle[q|g]uin[-|\\s][H|h][u|ü]nd",
+    Stauphund = "[S|s]t[ä|a]up[-|\\s][H|h][u|ü]nd",
+    Mops = "[M|m]o[p|b]s|[M|m]o[p|b]s[-|\\s][H|h][u|ü]nd",
+    Danischhund = "[D|d][ä|a]nisch[-|\\s][H|h][u|ü]nd",
+    Bummerhund = "[B|b]ummer[-|\\s][H|h][u|ü]nd", 
+    Vorsteherhund = "[V|v]orsteher[-|\\s][H|h][u|ü]nd",
+    Fotzelhund = "[F|f]otzel[-|\\s][H|h][u|ü]nd",
+    Spitzpommer = "[S|s]pitz[p|b]ommer[-|\\s][H|h][u|ü]nd|[P|p|b|B]ommer|[P|p|B|b]ommer[-|\\s][H|h][u|ü]nd"
+  )
+  
+  dict$neg <- list(
+    raw_material = "[S|s]eehund", 
+    animal = "Chaise-Pferd|Reisepferd|Chaisepferd",
+    knife = "[S|s]ackmesser"
+    
+  )
+  create_filter_output(dict)
+}
+```
+
+
+```{r,include=FALSE, echo=FALSE}
+## apply Tagfilter lost
+
+Lostads <- tagfilter_lost()
+
+Lostads_c <- Lostads$filtrate(c_all$corpus[ids_lostandfound],ignore.case = T)
+```
+
+```{r,include=FALSE, echo=FALSE}
+## apply Tagfilter found
+
+Foundads <- tagfilter_found()
+
+Foundads_c <- Foundads$filtrate(c_all$corpus[ids_lostandfound],ignore.case=T)
+
+```
+
+```{r,include=FALSE, echo=FALSE}
+#filter Dogs in Lost&Foundads
+Lostandfounddogs <- tagfilter_lfdogs()
+Lostandfounddogs_c <- Lostandfounddogs$filtrate(c_all$corpus[ids_lostandfound],ignore.case=T)
+
+#Filter Dogs in Foundads
+Founddogs_c <- Lostandfounddogs$filtrate(Foundads_c,ignore.case = T)
+
+#Filter Dogs in Lostads
+Lostdogs_c <-Lostandfounddogs$filtrate(Lostads_c,ignore.case=T)
+```
+
+```{r,include=FALSE, echo=FALSE}
+#get IDs for Lost&Found ads
+ids_Foundads <- names(Foundads_c)
+ids_Lostads <- names(Lostads_c)
+ids_Lostfoundtagfilter <- c(ids_Foundads,ids_Lostads)
+```
+
+```{r}
+length(ids_Lostfoundtagfilter)
+```
+Die Anzeigen von verlorenen und gefundenen Hunden ergibt sich aus der Schnittmenge der Lost & Found Filter sowie einem dritten Tagfilter, der ausschliesslich nach Hunden sucht. Daraus ergeben sich für die 37 Stichjahre 1002 Anzeigen für verlorene und 281 Anzeigen für gefundene Hunde. 
+
+```{r}
+length(Lostdogs_c)
+```
+```{r}
+length(Founddogs_c)
+```
+
+Bereits mit einfachen Abfragen lassen sich mit diesen Filtern nun erste Erkenntnisse auf die emotionale Bindung zwischen Hunden und ihren BesitzerInnen schliessen: Nur in sechs Fällen berichten die Inserenten davon, dass ihre Hunde ‘entlaufen’ seien, sich also intendiert von ihrem Inhaber entfernt hätten. In der überwiegenden Mehrheit der Anzeigen wird dagegen behauptet, dass die Hunde sich bloss ‘verloffen’ und sich wohl kaum freiwillig von ihrem Heim entfernt hätten. Die Vorstellung, dass der Hund absichtlich weggelaufen sei, schien für die HundeeigentümerInnen nur schwer vorstellbar zu sein, wie etwa die folgende Anzeige vom 27. Juni 1833 anschaulich darstellt: 
+```{r, echo=FALSE}
+#select by text
+ids_Lostdogs <- names(Lostdogs_c)
+ids <- select_by_text(ids_Lostdogs,c_all,"verloffen")
+show_records(ids[347],c_all)
+```
+Die verlorenen Hunde erhielten durch die detailreiche Schilderung ihres Aussehens einen individuellen Charakter. Dies diente einerseits als Information für die potenzielle Finderin, betonte aber zugleich die affektive Nähe zwischen BesitzerInnen und ihren Hunden. Dass es sich bei den inserierten Hunden nicht bloss um Nutztiere, sondern auch um Gefährten handelte, zeigt auch die folgende Anzeige, worin der vermisste Hund gleich mit Namen bezeichnet wird: 
+
+```{r, echo=FALSE}
+dog_name <- select_by_text(ids_Lostdogs,c_all,"[n|N]ame")
+show_records(dog_name[27],c_all)
+```
+Sowohl bei Nero wie auch beim oben erwähnten Spitzpommer hielten es die BesitzerInnen für angebracht, dem Halsband in der Anzeige besondere Aufmerksamkeit zu schenken. Die Halsbänder dienten als Accessoires mit repräsentativem Charakter. Halsbänder aus Messing tauchen in den Anzeigen häufiger auf und waren wohl serielle Ware. Andere Bänder wurden in den Anzeigen akribisch beschrieben. Dies kann als Hinweis gedeutet werden, dass diese Accessoires nicht nur Einzelanfertigungen waren, sondern auch persönlichen emotionalen Wert besassen. So finden sich denn auch einzelne Anzeigen, worin nur der Verlust eines Halsbandes beklagt wird.[^1]
+
+```{r, echo=FALSE}
+dog_collar <- select_by_text(ids_Lostdogs,c_all,"[H|h]alsband")
+show_records(dog_collar[15],c_all)
+
+```
+
+
+
+
+### Teil 3: Analyse von Worthäufigkeiten
+
+```{r,include=FALSE, echo=FALSE}
+#tokenize lost&Found ads and create document feature matrix
+toks_Lostandfounddogs <- tokens(Lostandfounddogs_c,remove_numbers = TRUE,remove_punct = TRUE)
+dfmat_lostandfounddogs <- dfm(toks_Lostandfounddogs, remove=stopwords("de"),tolower = TRUE)
+
+toks_lostdogs <- tokens(Lostdogs_c,remove_numbers = TRUE,remove_punct = TRUE)
+dfmat_lostdogs <- dfm(toks_lostdogs, remove=stopwords("de"),tolower = TRUE)
+
+toks_founddogs <- tokens(Founddogs_c,remove_numbers = TRUE,remove_punct = TRUE)
+dfmat_founddogs <- dfm(toks_founddogs, remove=stopwords("de"),tolower = TRUE)
+```
+
+Mit den Filtern von verlorenen und gefundenen Hunden lassen sich nicht nur wie oben einzelne Anzeigen herausfiltern und qualitativ analysieren. In den folgenden beiden Beispielen werden in zwei *Wordclouds* die absoluten Häufigkeiten der beiden Gruppen dargestellt. Auch hier lassen sich einige Beobachtungen feststellen.
+
+Zunächst zur Analyse der Anzeigen für vermisste Hunde:
+```{r, echo=FALSE}
+#create wordcloud for Lostdog ads
+textplot_wordcloud(dfmat_lostdogs, max_words = 150,color = "black")
+```
+
+Wie oben bereits bei einer einzelnen Anzeige festgestellt, bestätigt sich hier die Annahme, dass sich die meisten vermissten Hunde ‘verloffen’ hätten. Aus bisherigen Studien lassen sich zwei Argumente für diese häufige Wortwahl ableiten. Zum einen war diese Wendung geprägt von einem rigoros geführten obrigkeitlichen Diskurs über strenge Regeln der Hundehaltung in den vormodernen Städten. Die BesitzerInnen wollten damit zum Ausdruck bringen, dass sich ihre Hunde nicht durch eigene Unachtsamkeit entfernt hätten.[^2] Zum anderen verweist das Wort ‘verlaufen’ auf das im 19. Jahrhundert entstehende Narrativ der unbedingten Hundetreue, das auch Gegenstand der Kinderliteratur wurde. Darin fanden die treuen Haustiere widrigsten Umständen zum Trotz, immer wieder zu ihren BesitzerInnen zurück. Ein weiterer, immer wieder anzutreffender Topos war die Überzeugung, dass hinterbliebene Hunde, stets auf Neue ans Grab ihrer BesitzerInnen zurückkehren würden.[^3] Die ‘verloffenen’ Hunde im Avisblatt suggerieren demzufolge eine affektive Bindung der jeweiligen Hunde zu ihren EigentümerInnen, die zwar gerne zurückkehren würden, aber nicht mehr eigenständig den Weg zurückfinden können. 
+
+Im Weiteren lassen sich auch eine Vielzahl genutzter unterschiedlicher Begrifflichkeiten für die Beschreibung der Hunde feststellen. So ist denn auch interessant, dass den Ohren und dem Kopf des Hundes offenbar eine grössere Beachtung bei der Beschreibung des Hundes geschenkt wurde, als etwa der Grösse und der Farbe des Felles. Auch dies ist ein Hinweis darauf, dass die einzelnen Hunde als einzigartige Individuen mit individuell zuweisbaren Köpfen beschrieben wurden.  
+
+Ein anderes Bild ergibt sich bei einer Analyse der Anzeigen für gefundene Hunde:
+
+```{r, echo=FALSE}
+#create wordcloud for founddog ads
+textplot_wordcloud(dfmat_founddogs, max_words = 150,color = "black")
+```
+
+Erwartungsgemäss wir hier primär der Besitzer des Hundes in der Anzeige adressiert. Dieser konnte gegen treffende Beschreibung seinen Hund wiederum im Berichthaus abholen. Bemerkenswert ist die monetäre Transaktion, auf die in den Anzeigen verwiesen wird. Während das Anerbieten eines Finderlohns- dem ‘Trinkgeld’- in Vermisstenanzeigen für Hunde nicht unerwartet kommt, verdient es im Kontext von gefundenen Hunden an Beachtung. Die FinderInnen der Hunde verlangten ‘Trinkgeld’ und ‘Erkenntlichkeit’ und schienen damit erfolgreich gewesen zu sein. Sogar das ‘Kostgeld’- die Unterhaltskosten für den Hund- wurden bereits im Inserat eingefordert. Dem Verleger des Berichthauses musste der Eigentümer das ‘Einschreibgeld’ für die Anzeige zurückerstatten. Das Wiedererlangen des tierischen Gefährten war demzufolge ein kostspieliges Unterfangen, das Begehrlichkeiten weckte. Die FinderInnen erwarteten, dass der Besitzer des Hundes bereit war, eine gewisse Summe aufzubringen. Auch hier verdeutlicht sich aufs Neue die pluralen affektiven Mensch-Hund Beziehungen in ihrem soziokulturellen Kontext. 
+
+### Teil 4: Emotionsanalyse
+
+In einem abschliessenden Teil der Analyse soll versucht werden, die oben angestellten Thesen anhand von Emotionslexika nachzuvollziehen. Das *R-package Syuzhet* ermöglicht die Anwendung verschiedener Lexika, die in der Psychologie zur Quantifizierung von Emotionen genutzt werden. Das in dieser Untersuchung verwendete *NRC Lexicon* wurde mittels *crowdsourcing* annotiert und verweist auf eine Liste von 8 *basic emotions* und zwei *sentiments*.[^4] Ursprünglich in englischer Sprache erfasst, versprechen die AutorInnen des Lexikons, dass die Mehrheit affektiver Bezeichnungen über verschiedene Sprachen hinweg stabil sei. Das NRC Lexikon ist somit auch für deutsche Quellenkorpora anwendbar, indem die englischen Wörter automatisch übersetzt werden. Auftretende Probleme im Kontext des Avisblattkorpus werden weiter unten diskutiert. 
+
+```{r, include=FALSE, echo=FALSE}
+###Third step: Analysis with the NRC Word-Emotion Lexicon
+
+#the tokens command from quanteda does not work in syuzhet-package,
+#while the get.tokens command from syuzhet does not allow stopwords for analysis.
+#Therefore, both commands are applied to the same data one after the other.
+
+Founddogs_tokens_nrc <- get_tokens(toks_founddogs)
+
+#The same applies to lostdog ads
+
+Lostdogs_tokens_nrc <- get_tokens(toks_lostdogs)
+
+#The 'get_nrc_sentiment' implements the NRC Emotion lexicon.
+#It returns a data frame in which each row represents a sentence from the original file.
+#The columns include one for each emotion type as well as the positive or negative sentiment valence.
+#This takes quite a while
+nrc_founddogs <- get_nrc_sentiment(Founddogs_tokens_nrc, language = "german")
+
+#and now again for lost ads
+nrc_lostdogs <- get_nrc_sentiment(Lostdogs_tokens_nrc, language = "german")
+
+#Overview
+pander::pandoc.table(nrc_lostdogs[3942:3949,], split.table = Inf)
+Lostdogs_tokens_nrc[3942]
+```
+
+In den Literaturwissenschaften wurde das *NRC-package* bereits genutzt, um literarische Werke auf ihre emotionale Valenz entlang der narrativen Zeit zu analysieren. Aufgrund der relativen Kürze der Anzeigen im Avisblatt ist diese Analysemethode allerdings nicht sehr geeignet. Vielversprechender ist dafür die Quantifizierung der relationalen und absoluten Anzahl von *emotives*, wie sie in diesem Beispiel auf den Korpus der gefundenen Hunde angewendet wird. 
+
+```{r,echo=FALSE}
+#barplot of tokens in Found Ads
+barplot(
+  sort(colSums(prop.table(nrc_founddogs[,1:10]))),
+  horiz=TRUE,
+  cex.names = 0.7,
+  las=1,
+  main="Emotions and Sentiments in found dog ads", xlab = "Percentage",
+  col = "green"
+)
+```
+Zur Erläuterung der Grafik muss zunächst angemerkt werden, dass einzelne Wörter sowohl als *sentiments* wie auch als *emotions* (positiv/negativ) getaggt werden können. Dies zeigt sich in der häufigen Nennung von positiven und negativen Emotionswörtern im Verhältnis zu den übrig genannten Gruppen. Die Anzahl von Treffern unter *negative* ergibt sich etwa aus der Summe von *fear* und *sadness*.[^5]
+Aussagekräftiger sind dieselben Daten im gegenseitigen Vergleich zur Gruppe der Anzeigen vermisster Hunde. In den beiden folgenden Grafiken werden *emotions* und *sentiments* jeweils getrennt im relativen Verhältnis zur Grundgesamtheit prozentual dargestellt: 
+
+```{r, echo=FALSE}
+#Barplots combined only positive and negative
+sums_lostdogs_pn <- colSums(prop.table(nrc_lostdogs[,9:10]))
+sums_founddogs_pn<- colSums(prop.table(nrc_founddogs[,9:10]))
+sums_lostfounddogs_pn <- rbind(sums_founddogs_pn,sums_lostdogs_pn)
+barplot(
+  sums_lostfounddogs_pn,beside = T,
+  horiz = TRUE,
+  cex.names = 0.7,
+  las=1,
+  main = "Emotions in missing pet ads",xlab="percentage",
+  col=c("green", "blue")
+)
+legend("topright",
+       legend= c("Lost Dogs","Found Dogs"),
+       fill = c("green", "blue"))
+```
+Wie erwartet werden konnte, lassen sich in beiden Gruppen vermehrt negative Emotionswörter finden. Dies lässt einerseits auf tatsächlich empfundene negative Emotionen der HundebesitzerInnen bei Verlust ihres Haustieres schliessen, könnte anderseits aber auch bedeuten, dass die Betonung negativer Emotionen auch das Mitleid der LeserInnenschaft wecken sollte. Letztere Annahme bestätigt sich auch bei Betrachtung der spezifischen  *Sentiments*: 
+```{r, echo=FALSE}
+#only emotions
+sums_lostdogs_sentiment <- colSums(prop.table(nrc_lostdogs[,1:8]))
+sums_founddogs_sentiment<- colSums(prop.table(nrc_founddogs[,1:8]))
+sums_lostfounddogs_sentiment <- rbind(sums_founddogs_sentiment,sums_lostdogs_sentiment)
+barplot(
+  sums_lostfounddogs_sentiment,beside = T,
+  horiz = TRUE,
+  cex.names = 0.7,
+  las=1,
+  main = "Sentiments in missing pet ads",xlab="percentage",
+  col=c("green", "blue")
+)
+legend("bottomright",
+       legend= c("Lost Dogs","Found Dogs"),
+       fill = c("green", "blue"))
+```
+Die relativ betrachtet häufige Nennung von ‘Vertrauen’ lässt vermuten, dass Emotionen in Verlustanzeigen keineswegs nur auf Emotionen in Mensch-Hund Beziehungen schliessen lässt, sondern sich mit spezifischen emotionalen Markern ebenso an die LeserInnenschaft richtete. Die Verwendung von vertrauensstiftenden Wörtern schien die Wahrscheinlichkeit einer Rückkehr oder Rückgabe des Hundes zu erhöhen. Dies lässt sich zugleich verbinden mit der bereits zuvor festgestellten Strategie der InserentInnen, an das Mitleid der LeserInnenschaft zu appellieren, wie es hier in der häufigen Nennung von Wörtern in der Kategorie *sadness* angezeigt wird. 
+Auf den ersten Blick mag die hohe Zahl von Emotionswörtern in der Kategorie *joy* überraschen. Wie allerdings gleich gezeigt wird, richteten sich diese *emotives* abermals an das Publikum und können nur bedingt auf Mensch-Tier Verhältnis schliessen. Die graphisch dargestellten Resultate lassen sich nämlich auch qualitativ wiedergeben, wobei bei Anblick der Liste *‘joy’* innerhalb der Gruppe von Vermisstenanzeigen unterschiedliche Treffer zu finden sind. Die häufige Nennung des Wortes ‘freundlich’ ist bei Betrachtung der spezifischen Anzeigen denn auch eher als Höflichkeitsfloskel verbunden mit der ‘Bitte um freundliche Rückgabe’ zu verstehen: 
+
+```{r, echo=FALSE}
+#show joy Items from above chart
+Lostdogs_joy_items<- which(nrc_lostdogs$trust > 0)
+Lostdogs_tokens_nrc[Lostdogs_joy_items[1:20]]
+```
+
+Bei näherer Betrachtung stellen sich bei obiger Grafik dann auch einige Fragezeichen. Das automatisch übersetzte NRC-Lexikon findet beispielsweise nur Wörter in neudeutscher Schreibweise. Dies erklärt auch die geringe Trefferquote von Emotionswörtern im 18. Jahrhundert. Eine weitere Hürde liegt im begriffsgeschichtlichen Bedeutungswandel einiger Stimmungswörter und einem naheliegenden Anachronismusvorwurf der ausgewählten Methode. Doch auch abseits methodiktheoretischer Überlegungen trifft eine *sentiment analysis* mit dem NRC-Lexikon auf erhebliche Hürden. Dies zeigt beispielsweise in der folgenden Trefferliste von *Items* die unter der Kategorie *'fear'* gefunden wurden:  
+```{r, echo=FALSE}
+#show fear Items from above chart
+fear_items <- which(nrc_founddogs$fear > 0)
+Founddogs_tokens_nrc[fear_items[1:10]]
+```
+Das Wort ‘verloren’ verweist in diesem Bedeutungszusammenhang allerdings kaum auf eine Angstemotion, sondern ist lediglich struktureller Bestandteil einer Verlustanzeige. Eine These, dass HundebesitzerInnen besondere Angst vor dem Verlust ihres Hundes gehabt hätten, lässt sich folglich nur schwer verteidigen. 
+Dieser Befund soll allerdings nicht bedeuten, dass die Analyse von historischen Texten anhand von Emotionslexika *per se* ein hoffnungsloses Unterfangen sei. Eine explorative Datenanalyse hat allerdings den spezifischen Quellencharakter zu berücksichtigen und ihre Methode entsprechend anzupassen. Im Kontext von Vermisstenanzeigen für Hunde könnte dies beispielsweise bedeuten, dass Analysen zwar mit der Methodik des *Syuzhet-package* angestossen werden können, dafür aber spezifisch angepasste Lexika verwendet werden, die induktiv aus dem Quellenkorpus abgeleitet werden müssen. 
+
+[^1]:Steinbrecher, Aline: Vermisst! Vermisstenanzeigen für Hunde in den Wöchentlichen Frankfurter Frag- und Anzeigenachrichten des 18. Jahrhunderts, in: Tiere und Emotionen (17), 2020, S. 53.
+[^2]: vgl. ebd., S. 54.
+[^3]:Kete, Kathleen: The beast in the boudoir: petkeeping in nineteenth-century Paris, Berkeley [etc.] 1994, S. 
+[^4]:Vgl. https://saifmohammad.com/WebPages/NRC-Emotion-Lexicon.htm (aufgerufen am 15.01.2021)
+[^5]: Eine detaillierte Auflistung von Emotionswörtern und ihren indexierten *values* findet sich hier: https://public.tableau.com/profile/saif2522#!/vizhome/NRC-Emotion-Lexicon-viz1/NRCEmotionLexicon-viz1 (aufgerufen am 15.01.2021)
+
+
+### Bibliographie 
+
+Kete, Kathleen: The beast in the boudoir: petkeeping in nineteenth-century Paris, Berkeley [etc.] 1994.
+
+Steinbrecher, Aline: Vermisst! Vermisstenanzeigen für Hunde in den Wöchentlichen Frankfurter Frag- und Anzeigenachrichten des 18. Jahrhunderts, in: Tiere und Emotionen (17), 2020, S. 171.
+
+Tague, Ingrid H.: The history of emotional attachment to animals, in: Howell, Philip; Kean, Hilda (Hg.): The Routledge companion to animal-human history, London ; New York 2019 (Routledge companions), S. 345–366.
+
