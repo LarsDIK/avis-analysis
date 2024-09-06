@@ -20,8 +20,8 @@ Vermisstenanzeigen für Haustiere begegnen uns heute alltäglich. Doch bereits i
 Die im Rahmen des SNF-Projektes «*Printed Markets, the Basel Avisblatt 1729-1845*» angereicherte Datenbank von Anzeigen dienen als Ausgangspunkt der Analyse. Zunächst wurde ein Korpus von Anzeigen angereichert, der unter der Grundgesamtheit aller Anzeigen nur diejenigen von vermissten und gefundenen Hunden herausgreift. Dieser Filterprozess verläuft in mehreren Schritten. Vorweg werden nur Anzeigen in das *sample* aufgenommen, die unter der Rubrik «Verloren und Gefundenes» auftauchen. Während in anderen Intelligenzblättern verlorene Tiere ihre eigene Rubrik erhielten, waren im Basler Avisblatt verlorene und gefundene Tiere und Dinge in derselben Sparte zu finden. 
 ```{r, include=FALSE, echo=FALSE}
 # library(avisblatt)
-source("C:/Users/larsd/OneDrive/Dokumente/GitHub/LarsDIK/avis-analysis/Sandbox/filtering.R")
-source("C:/Users/larsd/OneDrive/Dokumente/GitHub/LarsDIK/avis-analysis/Sandbox/utils.R")
+source("~/avis-analysis/Sandbox/filtering.R")
+source("~/avis-analysis/Sandbox/utils.R")
 library(stringr)
 library(data.table)
 library(avisblatt)

@@ -64,7 +64,7 @@ clean_manual_tags <- function(x){
 #' @import data.table
 gather_yearly_collections <- function(AVIS_YEARS,
                                       just_meta = TRUE,
-                                      path = "C:/Users/larsd/OneDrive/Dokumente/GitHub/LarsDIK/avis-data/collections"){
+                                      path = "~/avis-data/collections"){
   AVIS_YEARS <- sort(as.numeric(AVIS_YEARS))
   AVIS_YEARS <- intersect(AVIS_YEARS,
                           list.files(path, pattern = "csv") |>
