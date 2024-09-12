@@ -4,7 +4,7 @@ Diese explorative Fallstudie untersucht emotionale Beziehungen zwischen Hundebes
 
 ## Datengrundlage und Methode
 
-Die Analyse basiert auf den Daten des SNF-Projekts *Printed Markets*, und analysiert Anzeigen in der Rubrik „Verloren und Gefundenes“. Mithilfe von Tagfiltern wurden gezielt Anzeigen zu Hunden herausgefiltert, was zu einer Auswahl von 1.002 Anzeigen vermisster und 281 Anzeigen gefundener Hunde führte.
+Die Analyse basiert auf den Daten des SNF-Projekts *Printed Markets*, und analysiert Anzeigen in der Rubrik „Verloren und Gefundenes“ im Basler Avisblatt. Mithilfe von Tagfiltern wurden gezielt Anzeigen zu Hunden herausgefiltert, was zu einer Auswahl von 1.002 Anzeigen vermisster und 281 Anzeigen gefundener Hunde führte.
 
 Für die Emotionsanalyse wird das *NRC Word-Emotion Association Lexicon* verwendet, das acht grundlegende Emotionen (z.B. Angst, Freude, Trauer) sowie zwei allgemeine Stimmungen (positiv, negativ) unterscheidet. Die Analyse erfolgt unter Verwendung des *R-packages Syuzhet* und wird auf deutschsprachige Anzeigen angewendet.
 
